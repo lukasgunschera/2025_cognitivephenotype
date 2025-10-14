@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: "Cognitive processes visualisation and analysis scripts"
+version: 1.8.0
+license: "MIT"
+type: software
+abstract: "These scripts include the preprocessing, analysis, and visualisation scripts for R, Mplus, and Stan."
+message: "If you use this software, please cite it as below."
+authors:
+  - given-names: Lukas J.
+    family-names: Gunschera
+    affiliation: MRC Cognition and Brain Sciences Unit, Unviersity of Cambridge
+    orcid: "https://orcid.org/0000-0002-8241-0833"
