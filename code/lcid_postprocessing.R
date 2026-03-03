@@ -105,7 +105,8 @@ ddtvar <- dd_hyperbo_params_02 %>%
   dplyr::left_join(., dd_hyperbo_params_06, by = "subjID") %>%
   dplyr::left_join(., dat_master, by = "subjID") %>%
   # drop columns that are all NA
-  dplyr::select(where(~ !all(is.na(.))))
+  dplyr::select(where(~ !all(is.na(.)))) %>%
+  dplyr::rename(., familyID = w05_familyID)
 
 # remove trailing "_c" from age columns
 ddtvar %<>%

@@ -89,6 +89,15 @@ ppcplot2 <- ppc02 %>%
   annotate(x = -Inf, xend = -Inf, y = 0, yend = 1, colour = "#2E2E2E", lwd = 0.75, geom = "segment") +
   annotate(x = 0, xend = 1, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.75, geom = "segment")
 
+ppcplot2_marg <- ggMarginal(
+  ppcplot2,
+  type = "density",
+  groupColour = TRUE,  # Keep color grouping
+  groupFill = TRUE,    # Keep fill grouping
+  alpha = 0.5,
+  size = 3             # Adjust size of marginal plots
+)
+
 ppcplot3 <- ppc03 %>%
   dplyr::mutate(real_delay_later = factor(real_delay_later)) %>%
   ggplot(aes(x = mean_real_choice, y = mean_pred_choice, colour = real_delay_later)) +
@@ -102,6 +111,15 @@ ppcplot3 <- ppc03 %>%
   labs(x = "Observed", y = "Predicted") +
   annotate(x = -Inf, xend = -Inf, y = 0, yend = 1, colour = "#2E2E2E", lwd = 0.75, geom = "segment") +
   annotate(x = 0, xend = 1, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.75, geom = "segment")
+
+ppcplot3_marg <- ggMarginal(
+  ppcplot3,
+  type = "density",
+  groupColour = TRUE,  # Keep color grouping
+  groupFill = TRUE,    # Keep fill grouping
+  alpha = 0.5,
+  size = 3             # Adjust size of marginal plots
+)
 
 ppcplot4 <- ppc04 %>%
   dplyr::mutate(real_delay_later = factor(real_delay_later)) %>%
@@ -117,6 +135,15 @@ ppcplot4 <- ppc04 %>%
   annotate(x = -Inf, xend = -Inf, y = 0, yend = 1, colour = "#2E2E2E", lwd = 0.75, geom = "segment") +
   annotate(x = 0, xend = 1, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.75, geom = "segment")
 
+ppcplot4_marg <- ggMarginal(
+  ppcplot4,
+  type = "density",
+  groupColour = TRUE,  # Keep color grouping
+  groupFill = TRUE,    # Keep fill grouping
+  alpha = 0.5,
+  size = 3             # Adjust size of marginal plots
+)
+
 ppcplot5 <- ppc05 %>%
   dplyr::mutate(real_delay_later = factor(real_delay_later)) %>%
   ggplot(aes(x = mean_real_choice, y = mean_pred_choice, colour = real_delay_later)) +
@@ -130,6 +157,16 @@ ppcplot5 <- ppc05 %>%
   labs(x = "Observed", y = "Predicted") +
   annotate(x = -Inf, xend = -Inf, y = 0, yend = 1, colour = "#2E2E2E", lwd = 0.75, geom = "segment") +
   annotate(x = 0, xend = 1, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.75, geom = "segment")
+
+ppcplot5_marg <- ggMarginal(
+  ppcplot5,
+  type = "density",
+  groupColour = TRUE,  # Keep color grouping
+  groupFill = TRUE,    # Keep fill grouping
+  alpha = 0.5,
+  size = 3             # Adjust size of marginal plots
+)
+
 
 ppcplot6 <- ppc06 %>%
   dplyr::mutate(real_delay_later = factor(real_delay_later)) %>%
@@ -145,27 +182,15 @@ ppcplot6 <- ppc06 %>%
   annotate(x = -Inf, xend = -Inf, y = 0, yend = 1, colour = "#2E2E2E", lwd = 0.75, geom = "segment") +
   annotate(x = 0, xend = 1, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.75, geom = "segment")
 
-ppcplot6 <- ppcplot6 +
-  theme(legend.position = "bottom") +
-  labs(colour = "Delay level") +
-  ggtitle("Wave 6") +
-  theme(plot.title = element_text(vjust = -2, size = 12))
+ppcplot6_marg <- ggMarginal(
+  ppcplot6,
+  type = "density",
+  groupColour = TRUE,  # Keep color grouping
+  groupFill = TRUE,    # Keep fill grouping
+  alpha = 0.5,
+  size = 3             # Adjust size of marginal plots
+)
 
-ppcplot5 <- ppcplot5 +
-  ggtitle("Wave 5") +
-  theme(plot.title = element_text(vjust = -2, size = 12))
-
-ppcplot4 <- ppcplot4 +
-  ggtitle("Wave 4") +
-  theme(plot.title = element_text(vjust = -2, size = 12))
-
-ppcplot3 <- ppcplot3 +
-  ggtitle("Wave 3") +
-  theme(plot.title = element_text(vjust = -2, size = 12))
-
-ppcplot2 <- ppcplot2 +
-  ggtitle("Wave 2") +
-  theme(plot.title = element_text(vjust = -2, size = 12))
 
 # create layout of mergerd plot
 layout <- c(
@@ -176,25 +201,115 @@ layout <- c(
   area(2, 2)
 )
 
-# combine the plots using the defined layout
-combined_plot <- ppcplot2 + ppcplot3 + ppcplot4 + ppcplot5 + ppcplot6 + plot_spacer() +
-  plot_layout(design = layout, guides = "collect")
 
-ppc_plots_all <- ggpubr::ggarrange(
-  ppcplot2, ppcplot3, ppcplot4, ppcplot5, ppcplot6,
-  ncol = 2, nrow = 3,
-  common.legend = TRUE,    # shared legend
-  legend = "bottom",
-  legend.grob = get_legend(ppcplot6) # extract legend from the last plot
+
+
+# Create a function to add panel labels
+add_panel_label <- function(plot, label, x_pos = 0.02, y_pos = 0.98,
+                            size = 12, fontface = "bold", color = "black") {
+  # ggMarginal returns a special class, so we need to handle it differently
+  # We'll add the label to the main ggplot before passing to ggMarginal
+  return(plot)
+}
+
+
+# Now combine them using grid.arrange
+library(gridExtra)
+library(ggplot2)
+
+# First, create a separate plot just for the legend
+legend_plot <- ppc06 %>%
+  dplyr::mutate(real_delay_later = factor(real_delay_later)) %>%
+  ggplot(aes(x = mean_real_choice, y = mean_pred_choice, colour = real_delay_later)) +
+  geom_point() +
+  scale_colour_viridis_d(begin = .1, end = .8, option = "C", direction = -1, name = "Delay level") +
+  plot_theme +
+  theme(legend.position = "bottom",
+        legend.box = "horizontal",
+        legend.direction = "horizontal")
+
+# Extract the legend
+legend_grob <- get_legend(legend_plot)
+
+# Create the main grid of plots
+main_plots <- grid.arrange(
+  ppcplot2_marg, ppcplot3_marg,
+  ppcplot4_marg, ppcplot5_marg,
+  ppcplot6_marg,
+  ncol = 3,
+  nrow = 2
 )
 
-# save plot
-ggsave(ppc_plots_all,
+# Combine main plots with legend at the bottom
+ppc_plots_all <- grid.arrange(
+  main_plots,
+  legend_grob,
+  nrow = 2,
+  heights = c(0.95, 0.05)  # Adjust these values to control space allocation
+)
+
+# Alternative: If you want a 2x3 grid with all plots aligned
+# Create an empty plot for the 6th position
+empty_plot <- ggplot() +
+  theme_void()
+
+# Arrange in 2x3 grid
+ppc_plots_all <- grid.arrange(
+  ppcplot2_marg, ppcplot3_marg,
+  ppcplot4_marg, ppcplot5_marg,
+  ppcplot6_marg, empty_plot,
+  ncol = 3,
+  nrow = 2,
+  bottom = legend_grob
+)
+
+# Alternative: Using patchwork for better control with panel labels
+if (!require(patchwork)) install.packages("patchwork")
+library(patchwork)
+
+# Since ggMarginal objects don't work directly with patchwork,
+# we need to use grid.arrange or arrange them differently
+
+# OPTION: Add panel labels during grid arrangement
+# Create a function to add panel label to a grob
+add_panel_to_grob <- function(grob, label) {
+  # Create a text grob for the label
+  label_grob <- textGrob(label,
+                         x = unit(0.05, "npc"),
+                         y = unit(0.95, "npc"),
+                         hjust = 0, vjust = 1,
+                         gp = gpar(fontsize = 14, fontface = "bold"))
+
+  # Arrange the plot and label
+  g <- arrangeGrob(grob,
+                   top = label_grob,
+                   padding = unit(0, "line"))
+  return(g)
+}
+
+# Add panel labels to each plot grob
+ppcplot2_marg_labeled <- add_panel_to_grob(ppcplot2_marg, "A")
+ppcplot3_marg_labeled <- add_panel_to_grob(ppcplot3_marg, "B")
+ppcplot4_marg_labeled <- add_panel_to_grob(ppcplot4_marg, "C")
+ppcplot5_marg_labeled <- add_panel_to_grob(ppcplot5_marg, "D")
+ppcplot6_marg_labeled <- add_panel_to_grob(ppcplot6_marg, "E")
+
+
+# For 3-column layout with 2 rows
+ppc_plots_all_3col <- grid.arrange(
+  ppcplot2_marg_labeled, ppcplot3_marg_labeled, ppcplot4_marg_labeled,
+  ppcplot5_marg_labeled, ppcplot6_marg_labeled, empty_plot,
+  ncol = 3,
+  nrow = 2,
+  bottom = legend_grob
+)
+
+# Save with appropriate dimensions
+ggsave(ppc_plots_all_3col,
        path = here::here("output", "images", "modelfit"),
-       filename = "ppc_plots.png",
-       width = 6,       # increase width (inches)
-       height = 8,       # increase height (inches)
-       dpi = 600,        # lower DPI if file size is too large
+       filename = "ppc_plots_panels.png",
+       width = 12,    # Wider for 3 columns
+       height = 8,    # Adjusted height
+       dpi = 600,
        device = "png"
 )
-

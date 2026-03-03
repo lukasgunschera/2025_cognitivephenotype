@@ -410,6 +410,361 @@ ggplot2::ggsave(gg_age_choice,
   path = here("output", "images"), filename = "age_choice_interaction.png", dpi = 1200, device = "png"
 )
 
+#### Choice proportions -----------------------------------------------------------------------------------------------------
+
+datasets <- list(ddtask02, ddtask03, ddtask04, ddtask05, ddtask06)
+dataset_names <- c("ddtask02", "ddtask03", "ddtask04", "ddtask05", "ddtask06")
+
+# Individual participant analysis by delay
+participant_delay_analysis <- map2_dfr(datasets, dataset_names, function(data, name) {
+  data %>%
+    mutate(dataset = name)
+}) %>%
+  group_by(dataset, subjID, delay_later) %>%
+  summarise(
+    prop_accepted = mean(choice),
+    n_trials = n(),
+    .groups = 'drop'
+  )
+
+participant_analysis <- map2_dfr(datasets, dataset_names, function(data, name) {
+  data %>%
+    mutate(dataset = name)
+}) %>%
+  group_by(dataset, subjID) %>%
+  summarise(
+    prop_accepted = mean(choice),
+    n_trials = n(),
+    .groups = 'drop'
+  )
+
+delay_analysis <- map2_dfr(datasets, dataset_names, function(data, name) {
+  data %>%
+    mutate(dataset = name)
+}) %>%
+  group_by(dataset, delay_later) %>%
+  summarise(
+    n_trials = n(),
+    n_accepted = sum(choice == 1),
+    prop_accepted = mean(choice),
+    se = sqrt(prop_accepted * (1 - prop_accepted) / n()),  # Standard error for proportion
+    n_participants = n_distinct(subjID),
+    .groups = 'drop'
+  )
+
+# Additional: Distribution by delay_later within each dataset
+delay_stats <- participant_delay_analysis %>%
+  group_by(dataset, delay_later) %>%
+  summarise(
+    n = n(),
+    mean_prop = round(mean(prop_accepted, na.rm = TRUE), 4),
+    sd_prop = round(sd(prop_accepted, na.rm = TRUE), 4),
+    se_prop = round(sd(prop_accepted, na.rm = TRUE) / sqrt(n()), 4),
+    ci_lower = round(mean_prop - 1.96 * se_prop, 4),
+    ci_upper = round(mean_prop + 1.96 * se_prop, 4),
+    .groups = 'drop'
+  )
+
+# show summary of data
+participant_analysis %>%
+  group_by(dataset) %>%
+  summarise(
+    # Basic counts
+    n_observations = n(),
+    n_subjects = n_distinct(subjID),
+
+    # Calculate all numeric stats first, then format
+    mean_val = mean(prop_accepted, na.rm = TRUE),
+    median_val = median(prop_accepted, na.rm = TRUE),
+    trimmed_mean_val = mean(prop_accepted, trim = 0.1, na.rm = TRUE),
+    sd_val = sd(prop_accepted, na.rm = TRUE),
+    iqr_val = IQR(prop_accepted, na.rm = TRUE),
+    mad_val = mad(prop_accepted, na.rm = TRUE),
+    cv_val = sd(prop_accepted, na.rm = TRUE) / mean(prop_accepted, na.rm = TRUE),
+    min_val = min(prop_accepted, na.rm = TRUE),
+    max_val = max(prop_accepted, na.rm = TRUE),
+    range_val = max(prop_accepted, na.rm = TRUE) - min(prop_accepted, na.rm = TRUE),
+    q1_val = quantile(prop_accepted, 0.25, na.rm = TRUE),
+    q3_val = quantile(prop_accepted, 0.75, na.rm = TRUE),
+    p05_val = quantile(prop_accepted, 0.05, na.rm = TRUE),
+    p95_val = quantile(prop_accepted, 0.95, na.rm = TRUE),
+    prop_zero_val = mean(prop_accepted == 0, na.rm = TRUE),
+    prop_one_val = mean(prop_accepted == 1, na.rm = TRUE),
+    prop_mid_val = mean(prop_accepted > 0 & prop_accepted < 1, na.rm = TRUE),
+    n_missing = sum(is.na(prop_accepted)),
+    prop_missing_val = mean(is.na(prop_accepted)),
+
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    across(ends_with("_val"), ~sprintf("%.5f", .), .names = "{str_remove(.col, '_val$')}"),
+    n_observations = as.character(n_observations),
+    n_subjects = as.character(n_subjects),
+    n_missing = as.character(n_missing)
+  ) %>%
+  select(dataset, n_observations, n_subjects, mean:prop_missing)
+
+# labeled data
+participant_delay_analysis_labeled <- participant_delay_analysis %>%
+  mutate(
+    delay_factor = factor(delay_later,
+                          levels = c(2, 30, 180, 365),
+                          labels = c("2 days", "30 days", "180 days", "365 days")),
+    wave_label = factor(dataset,
+                        levels = c("ddtask02", "ddtask03", "ddtask04", "ddtask05", "ddtask06"),
+                        labels = c("Wave 2", "Wave 3", "Wave 4", "Wave 5", "Wave 6"))
+  )
+
+# Calculate means for each wave and delay combination
+delay_means <- participant_delay_analysis_labeled %>%
+  group_by(wave_label, delay_factor) %>%
+  summarise(mean_prop = mean(prop_accepted), .groups = 'drop')
+
+# PLOT 1
+axis_data <- participant_delay_analysis_labeled %>%
+  distinct(wave_label)
+
+# Define which facets get which axes
+bottom_facets <- c("Wave 2", "Wave 3", "Wave 4", "Wave 5", "Wave 6")  # All get x-axis (bottom row)
+left_facets <- c("Wave 2")  # Only leftmost gets y-axis
+
+p1 <- ggplot(participant_delay_analysis_labeled,
+             aes(x = prop_accepted, fill = delay_factor)) +
+  geom_density(alpha = 0.85, position = position_stack(vjust = 0.75, reverse = FALSE)) +  # Add spacing
+  # Add vertical lines for means
+  geom_vline(data = delay_means,
+             aes(xintercept = mean_prop, color = delay_factor),
+             linetype = "dashed",
+             size = 0.8,
+             show.legend = FALSE) +
+  # Add x-axis lines to bottom facets only
+  geom_segment(data = axis_data %>% filter(wave_label %in% bottom_facets),
+               aes(x = 0, xend = 1, y = -Inf, yend = -Inf),
+               colour = "#2E2E2E", lwd = 0.75, inherit.aes = FALSE) +
+  # Add y-axis line only to leftmost facet
+  geom_segment(data = axis_data %>% filter(wave_label %in% left_facets),
+               aes(x = -Inf, xend = -Inf, y = 0, yend = 6),
+               colour = "#2E2E2E", lwd = 0.75, inherit.aes = FALSE) +
+  facet_wrap(~wave_label, ncol = 5) +
+  scale_x_continuous(
+    labels = scales::percent,
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.5),
+    expand = expansion(mult = c(0.05, 0.02))  # Add small margin on x-axis
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0.02, 0.05))  # Add margin on y-axis
+  ) +
+  scale_fill_viridis_d(
+    option = "B",
+    begin = .2,
+    end = .8,
+    name = "Delay Duration",
+    labels = c("2 days", "30 days", "180 days", "365 days")
+  ) +
+  scale_color_viridis_d(
+    option = "B",
+    begin = .2,
+    end = .8
+  ) +
+  labs(
+    x = "Proportion of Delayed Rewards Accepted",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  plot_theme +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 11),
+    legend.text = element_text(size = 10),
+    legend.key.size = unit(1, "cm"),
+    legend.spacing.x = unit(0.5, "cm"),
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(size = 11),
+    strip.text = element_text(face = "bold", size = 10),
+    panel.grid.minor = element_blank(),
+    panel.spacing = unit(1.5, "lines"),
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt")  # Add margin around entire plot
+  )
+
+print(p1)
+
+ggsave(p1,
+  path = here("output", "images"), filename = "dd_task_behaviour_density.png", dpi = 1200, device = "png", height = 5, width = 10
+)
+
+# P2: Heatmap: Acceptance rates across datasets and delays
+p2 <- ggplot(delay_analysis, aes(x = factor(delay_later), y = dataset, fill = prop_accepted)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = sprintf("%.0f%%", prop_accepted * 100)), color = "white", fontface = "bold") +
+  labs(x = "Delay (days)",
+       fill = "Acceptance\nRate",
+       y = "") +
+  theme_minimal() +
+  plot_theme +
+  scale_y_discrete(labels = c("Wave 2", "Wave 3", "Wave 4", "Wave 5", "Wave 6")) +
+  scale_fill_viridis(direction = -1, option = "B", begin = .2, end = .8) +
+  annotate(x = 1, xend = 4, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = .75, geom = "segment") +
+  annotate(x = -Inf, xend = -Inf, y = 1, yend = 5, colour = "#2E2E2E", lwd = .75, geom = "segment")
+
+ggsave(p2,
+  path = here("output", "images"), filename = "dd_task_behaviour_heatmap.png", dpi = 1200, device = "png", height = 6, width = 6
+)
+
+#PLOT 3
+axis_data <- participant_delay_analysis %>%
+  group_by(dataset) %>%
+  slice(1) %>%
+  ungroup()
+
+# Get the facet positions
+bottom_facets <- c("ddtask05", "ddtask06", "ddtask04")  # Bottom row
+left_facets <- c("ddtask02", "ddtask05")  # Left column
+
+p3 <- participant_delay_analysis %>%
+  ggplot(aes(x = delay_later, y = prop_accepted, group = subjID, color = dataset)) +
+  geom_line(alpha = 0.3, size = 0.5) +
+  geom_smooth(aes(group = dataset, fill = dataset),
+              method = "lm",
+              se = TRUE,
+              size = 1.5,
+              color = "black",
+              alpha = 0.2) +
+  # Add x-axis lines only to bottom row
+  geom_segment(data = axis_data %>% filter(dataset %in% bottom_facets),
+               aes(x = 2, xend = 365, y = -Inf, yend = -Inf),
+               colour = "#2E2E2E", lwd = 0.75, inherit.aes = FALSE) +
+  # Add y-axis lines only to left column
+  geom_segment(data = axis_data %>% filter(dataset %in% left_facets),
+               aes(x = 0, xend = 0, y = 0, yend = 1),
+               colour = "#2E2E2E", lwd = 0.75, inherit.aes = FALSE) +
+  facet_wrap(~dataset, ncol = 3,
+             labeller = labeller(dataset = c("ddtask02" = "Wave 2",
+                                             "ddtask03" = "Wave 3",
+                                             "ddtask04" = "Wave 4",
+                                             "ddtask05" = "Wave 5",
+                                             "ddtask06" = "Wave 6"))) +
+  scale_x_continuous(
+    trans = "log10",
+    breaks = c(2, 30, 180, 365),
+    expand = expansion(mult = c(0.02, 0.02))  # Add margin
+  ) +
+  scale_y_continuous(
+    labels = scales::percent,
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.5),
+    expand = expansion(mult = c(0.02, 0.05))  # Add margin
+  ) +
+  scale_colour_viridis_d(
+    direction = -1,
+    option = "B",
+    begin = .2,
+    end = .8,
+    name = "Measurement Wave",
+    labels = c("Wave 2", "Wave 3", "Wave 4", "Wave 5", "Wave 6")
+  ) +
+  scale_fill_viridis_d(
+    direction = -1,
+    option = "B",
+    begin = .2,
+    end = .8,
+    guide = "none"  # Hide fill legend (same as color)
+  ) +
+  labs(
+    x = "Delay (days, log scale)",
+    y = "Proportion Accepted"
+  ) +
+  theme_minimal() +
+  plot_theme +
+  theme(
+    legend.position = "none",
+    panel.spacing = unit(1.5, "lines"),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt")
+  )
+
+print(p3)
+
+# Save
+ggsave("output/images/dd_task_trajectories.png", p3,
+       width = 10, height = 7, dpi = 600)
+
+
+# Get axis data for faceting
+amount_axis_data <- participant_amount_analysis_labeled %>%
+  distinct(wave_label)
+
+# Define which facets get which axes
+bottom_facets <- c("Wave 2", "Wave 3", "Wave 4", "Wave 5", "Wave 6")
+left_facets <- c("Wave 2")
+
+# DENSITY PLOT - by amount_sooner
+p_amount_density <- ggplot(participant_amount_analysis_labeled,
+                           aes(x = prop_accepted, fill = amount_factor)) +
+  geom_density(alpha = 0.85, position = position_stack(vjust = 0.75, reverse = FALSE)) +
+  # Add vertical lines for means
+  geom_vline(data = amount_means_labeled,
+             aes(xintercept = mean_prop, color = amount_factor),
+             linetype = "dashed",
+             size = 0.8,
+             show.legend = FALSE) +
+  # Add x-axis lines to bottom facets only
+  geom_segment(data = amount_axis_data %>% filter(wave_label %in% bottom_facets),
+               aes(x = 0, xend = 1, y = -Inf, yend = -Inf),
+               colour = "#2E2E2E", lwd = 0.75, inherit.aes = FALSE) +
+  # Add y-axis line only to leftmost facet
+  geom_segment(data = amount_axis_data %>% filter(wave_label %in% left_facets),
+               aes(x = -Inf, xend = -Inf, y = 0, yend = 6),
+               colour = "#2E2E2E", lwd = 0.75, inherit.aes = FALSE) +
+  facet_wrap(~wave_label, ncol = 5) +
+  scale_x_continuous(
+    labels = scales::percent,
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.5),
+    expand = expansion(mult = c(0.05, 0.02))
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0.02, 0.05))
+  ) +
+  scale_fill_viridis_d(
+    option = "D",  # Different color palette for amounts
+    begin = .2,
+    end = .8,
+    name = "Immediate Amount"
+  ) +
+  scale_color_viridis_d(
+    option = "D",
+    begin = .2,
+    end = .8
+  ) +
+  labs(
+    x = "Proportion of Delayed Rewards Accepted",
+    y = "Density",
+    title = "Acceptance Distributions by Immediate Reward Amount"
+  ) +
+  theme_minimal() +
+  plot_theme +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 11),
+    legend.text = element_text(size = 10),
+    legend.key.size = unit(0.8, "cm"),
+    legend.spacing.x = unit(0.3, "cm"),
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    axis.title = element_text(size = 11),
+    strip.text = element_text(face = "bold", size = 10),
+    panel.grid.minor = element_blank(),
+    panel.spacing = unit(1.5, "lines"),
+    plot.margin = margin(t = 20, r = 20, b = 20, l = 20, unit = "pt")
+  )
+
+print(p_amount_density)
+
+ggsave(p_amount_density,
+       path = here("output", "images"),
+       filename = "dd_task_amount_density.png",
+       dpi = 1200, device = "png", height = 5, width = 10)
+
 #### Social media ~ age -----------------------------------------------------------------------------------------------------
 
 sm_ps_age <- lmerTest::lmer(sm_postandscroll ~ age + (1 | subjID), data = ddtvar_long)
@@ -448,24 +803,64 @@ pred <- ggeffects::ggpredict(cius_ps_age, terms = "age")
 wave.labs <- c("Wave 2", "Wave 3", "Wave 4", "Wave 5", "Wave 6")
 names(wave.labs) <- c("2", "3", "4", "5", "6")
 
-# examine distribution of estimated discounting rates
+# distribution of discounting rates
+
 k_dens <- ddtvar_long %>%
   filter(!is.na(estimate_k)) %>%
   group_by(wave) %>%
   ggplot(., aes(x = estimate_k, fill = wave)) +
   geom_density(colour = "#2E2E2E") +
   plot_theme +
-  scale_x_continuous(limits = c(0, 1), breaks = c(0, .5, 1), labels = drop_leading_zeros) +
-  xlab("Delay discounting parameter `k`") +
+  scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, .2), labels = drop_leading_zeros) +
+  xlab("Delay discounting parameter (k)") +
+  ylab("Density") +
+  facet_grid(~wave, labeller = labeller(wave = wave.labs)) +
+  theme(panel.spacing = unit(.25, "cm"),
+        axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+        strip.background = element_blank()) +
+  annotate(x = 0, xend = 1, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = .75, geom = "segment") +
+  scale_fill_viridis(
+    direction = -1,
+    option = "B",
+    begin = .2, end = .8
+  )
+
+
+
+logk_dens <- ddtvar_long %>%
+  filter(!is.na(logk)) %>%
+  group_by(wave) %>%
+  ggplot(., aes(x = logk, fill = wave)) +
+  geom_density(colour = "#2E2E2E") +
+  plot_theme +
+  scale_x_continuous(limits = c(0, 15), breaks = seq(0, 15, 5), labels = drop_leading_zeros) +
+  xlab("Delay discounting parameter (-log(k))") +
   ylab("Density") +
   facet_grid(~wave, labeller = labeller(wave = wave.labs)) +
   theme(
     axis.text.y = element_blank(), axis.ticks.y = element_blank(),
-    panel.spacing = unit(.25, "cm")
+    panel.spacing = unit(.25, "cm"),
+    strip.text = element_blank()
   ) +
-  annotate(x = 0, xend = 1, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = .75, geom = "segment")
+  annotate(x = 0, xend = 15, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = .75, geom = "segment") +
+  scale_fill_viridis(
+    direction = -1,
+    option = "B",
+    begin = .2, end = .8
+  )
 
-ggplot2::ggsave(k_dens, path = here("output", "images", "modeling"), filename = "k_density.png", dpi = 1200, device = "png")
+gg_dd_dens <- ggarrange(k_dens, logk_dens,
+  ncol = 1, nrow = 2,
+  labels = c("A", "B"),
+  vjust = 1,
+  font.label = list(size = 12)
+)
+
+ggplot2::ggsave(
+  gg_dd_dens,
+  path = here("output", "images", "modeling"),
+  filename = "delay_discounting_densities.png", dpi = 1200, device = "png"
+)
 
 # examine distribution of estimated discounting rates log-transformed
 logk_dens <- ddtvar_long %>%
@@ -1790,9 +2185,9 @@ ggplot2::ggsave(hscs_eatq_dens,
 
 # create a new tibble with the desired rows
 dd_model_sim <- tibble(
-  delay = round(runif(10000, 0, 80)),
-  reward = runif(10000, 100, 100),
-  k = sample(c(0.01, 0.1, 1), 10000, replace = TRUE)
+  delay = round(runif(10000, 0, 365)),
+  reward = runif(10000, 10, 10),
+  k = sample(c(0.01, 0.02, 0.1), 10000, replace = TRUE)
 ) %>%
   mutate(subjective_value = reward / (1 + k * delay))
 
@@ -1800,13 +2195,14 @@ dd_sval_demo <- dd_model_sim %>%
   mutate(k = as.factor(k)) %>%
   ggplot(aes(x = delay, y = subjective_value, colour = k, group = k)) +
   geom_line(aes(colour = k), linewidth = 1.25) +
-  scale_colour_viridis_d(direction = -1, option = "viridis", begin = 0, end = 1, labels = c("k = 0.1", "k = 1", "k = 10")) +
+  scale_colour_viridis_d(direction = -1, option = "viridis", begin = 0, end = 1, labels = c("k = 0.01", "k = 0.02", "k = 0.1")) +
   plot_theme_legend +
   aspect_ratio_balanced +
-  annotate(x = -Inf, xend = -Inf, y = 0, yend = 100, colour = "#2E2E2E", lwd = 0.5, geom = "segment") +
-  annotate(x = 0, xend = 80, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.5, geom = "segment") +
+  scale_x_continuous(limits = c(0, 365), breaks = seq(0, 365, 73)) +
+  annotate(x = -Inf, xend = -Inf, y = 0, yend = 10, colour = "#2E2E2E", lwd = 0.5, geom = "segment") +
+  annotate(x = 0, xend = 365, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.5, geom = "segment") +
   theme(legend.position = c(.8, .8)) +
-  labs(x = " Delay [days]", y = expression(SV[later] * " [100€]"), colour = "")
+  labs(x = " Delay [days]", y = expression(SV[later] * " [10€]"), colour = "")
 
 ggplot2::ggsave(dd_sval_demo,
   path = here::here("output", "images"),
@@ -1841,11 +2237,11 @@ gg_soft_sim <- dd_soft_sim %>%
   # geom_point(aes(colour = beta), size = .5) +
   plot_theme_legend +
   aspect_ratio_balanced +
-  scale_x_continuous(limits = c(-15, 15), breaks = seq(-15, 15, 5)) +
+  scale_x_continuous(limits = c(-10, 10), breaks = seq(-10, 10, 2)) +
   scale_y_continuous(limits = c(0, 1)) +
   geom_line(aes(colour = beta)) +
   annotate(x = -Inf, xend = -Inf, y = 0, yend = 1, colour = "#2E2E2E", lwd = 0.5, geom = "segment") +
-  annotate(x = -15, xend = 15, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.5, geom = "segment") +
+  annotate(x = -10, xend = 10, y = -Inf, yend = -Inf, colour = "#2E2E2E", lwd = 0.5, geom = "segment") +
   scale_colour_viridis_d(direction = -1, begin = 0, end = 1, labels = c("β = 0.1", "β = 1", "β = 10")) +
   theme(legend.position = c(0.8, 0.3)) +
   labs(y =  expression(p(accept)[later]), x = expression(SV[later] - SV[sooner]), colour = "")
@@ -1858,11 +2254,11 @@ ggplot2::ggsave(gg_soft_sim,
 gg_dd_sim <- ggpubr::ggarrange(plotlist = list(dd_sval_demo, gg_soft_sim),
                   ncol = 2, nrow = 1,
                   common.legend = FALSE,
-                  legend = "bottom",
+                  #legend = "bottom",
                   labels = c("A", "B"))
 
 png(filename = here::here("output", "images", "dd_model_simulated.png"),
-    width = 8, height = 4, units = "in", res = 800)
+    width = 8, height = 3, units = "in", res = 800)
 print(gg_dd_sim)
 dev.off()
 
@@ -2193,28 +2589,36 @@ dd_eatq_ec <- ddtvar_long %>%
 
 # merge above plots into a single visualisation
 dd_mh <- ggpubr::ggarrange(
-  dd_bis + theme(axis.title.x = element_blank(), axis.title.y = element_text(face = "bold")),
-  dd_bas + theme(axis.title.x = element_blank(), axis.title.y = element_text(face = "bold")),
-  dd_sdq + theme(axis.title.x = element_blank(), axis.title.y = element_text(face = "bold")),
-  dd_hscs + theme(axis.title.x = element_blank(), axis.title.y = element_text(face = "bold")),
-  dd_eatq_ec + theme(axis.title.x = element_blank(), axis.title.y = element_text(face = "bold")),
-  heights = c(.25, .5, .5, .5, .5),
-  widths = c(1, 1, 1, 1, 1, .2),
-  ncol = 6,
-  labels = c("A", "B", "C", "D", "E", ""), label.y = .725,
+  ggMarginal(dd_bis + theme( axis.title.y = element_text(face = "bold")), margins = "y"),
+  ggMarginal(dd_bas + theme(axis.title.y = element_text(face = "bold")), margins = "y"),
+  ggMarginal(dd_sdq + theme(axis.title.y = element_text(face = "bold")), margins = "y"),
+  ggMarginal(dd_hscs + theme(axis.title.y = element_text(face = "bold")), margins = "y"),
+  ggMarginal(dd_eatq_ec + theme(axis.title.y = element_text(face = "bold")), margins = "y"),
+  ncol = 3,
+  nrow = 2,
+  labels = c("A", "B", "C", "D", "E", ""),
   align = "v"
 )
 
-dd_mh <- ggpubr::annotate_figure(dd_mh,
-                        bottom = ggpubr::text_grob("Delay discounting (-logk)",
-                                                   face = "bold",
-                                                   size = 11,
-                                                   vjust = -16))
-
 ggsave(dd_mh,
-  path = here::here("output", "images", "descriptives"),
-  filename = "dd_mh.png", dpi = 1200, device = "png"
-)
+       filename = "dd_mental_health.png",
+       dpi = 600,
+       device = "png",
+       path = here::here("output", "images", "descriptives"),
+       width = 10,
+       height = 5)
+
+
+
+
+
+
+
+
+
+
+
+
 
 #### PLOT: Delay discounting ~ socio-economic status ------------------------------------------------------------------------
 

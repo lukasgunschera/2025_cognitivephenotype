@@ -16,10 +16,10 @@ set.seed(777)
 
 # set global parameters determining the model fitting process
 
-SIMULATE_DATA <- TRUE # should data be simulated or a previous simulation loaded
+SIMULATE_DATA <- FALSE # should data be simulated or a previous simulation loaded
 FIT_CLUSTER <- FALSE # should the fitting be run on a cluster or locally
-FIT_MODEL <- TRUE # should the fitting be run or loaded from file
-N_SAMPLE <- 10000 # number of participants to simulate
+FIT_MODEL <- FALSE # should the fitting be run or loaded from file
+N_SAMPLE <- 5000 # number of participants to simulate
 
 # load required packages
 library(loo)
@@ -254,8 +254,9 @@ dd_par_pr %<>%
   )
 
 # Examine correlations between simulated and recovered parameters, both log and not log transformed
-cor(dd_par_pr$value[dd_par_pr$parameter == "beta"], dd_par_pr$value_rec[dd_par_pr$parameter == "beta"])
+print(cor.test(dd_par_pr$value[dd_par_pr$parameter == "beta"], dd_par_pr$value_rec[dd_par_pr$parameter == "beta"]))
 print(cor.test(dd_par_pr$value[dd_par_pr$parameter == "k"], dd_par_pr$value_rec[dd_par_pr$parameter == "k"]), digits = 8)
+print(cor.test(-log(dd_par_pr$value[dd_par_pr$parameter == "k"]), -log(dd_par_pr$value_rec[dd_par_pr$parameter == "k"])), digits = 8)
 cor(dd_par_pr$value[dd_par_pr$parameter == "beta"], dd_par_pr$value_rec[dd_par_pr$parameter == "k"])
 cor(dd_par_pr$value[dd_par_pr$parameter == "k"], dd_par_pr$value_rec[dd_par_pr$parameter == "beta"])
 
@@ -307,7 +308,7 @@ pr_corplot <- ggcorrplot::ggcorrplot(
 
 ggplot2::ggsave(pr_corplot,
   path = here::here("output", "parameter_recovery", "images"),
-  filename = "parameter_recovery.png", dpi = 1200, device = "png"
+  filename = "parameter_recovery.png", dpi = 600, device = "png"
 )
 
 # examine spearman rank order correlations between simulated and recovered parameters, both log and not log transformed
